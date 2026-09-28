@@ -441,6 +441,7 @@
                         <label for="input-address" class="block text-xs font-medium text-slate-300 mb-1">จุดสังเกต / สีบ้าน / ซอย *</label>
                         <textarea id="input-address" rows="2" required placeholder="เช่น ชุมชนเกตุแก้ว ซอย 4 บ้านสองชั้นไม้ หลังคาสีฟ้า ติดริมน้ำ"
                             class="w-full bg-slate-950/70 border border-slate-700 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"></textarea>
+                        <p id="address-auto-hint" class="text-[11px] text-slate-400 mt-1 hidden"></p>
                     </div>
                 </div>
 
@@ -703,6 +704,11 @@
             updateTriagePriorityGauge();
             updateBadgeCount();
             renderLiveDispatchFeed();
+
+            // Auto-request GPS coordinates on startup for fast emergency locating
+            setTimeout(() => {
+                detectUserLocation(true);
+            }, 600);
 
             // Listen for multi-tab updates
             window.addEventListener('resqnow-db-updated', () => {
@@ -1204,82 +1210,166 @@
             document.getElementById('hud-lng').textContent = formattedLng;
         }
 
-        // 2. Geolocation with map.flyTo() and animation
-        function detectUserLocation() {
-            sfx.playClick();
+        // 2. Geolocation with map.flyTo(), auto-locating, and reverse geocoding
+        function detectUserLocation(isAuto = false) {
+            if (!isAuto) {
+                try { sfx.playClick(); } catch (e) {}
+            }
             const btn = document.getElementById('btn-geolocate');
             const spinner = document.getElementById('geo-spinner');
             const icon = document.getElementById('geo-icon');
             const status = document.getElementById('gps-status-indicator');
 
-            spinner.classList.remove('hidden');
-            icon.classList.add('hidden');
-            status.textContent = '● กำลังสแกนหาพิกัด GPS...';
-            status.className = 'text-[11px] text-amber-400 font-mono-num animate-pulse';
+            if (spinner && icon) {
+                spinner.classList.remove('hidden');
+                icon.classList.add('hidden');
+            }
+            if (status) {
+                status.textContent = '● กำลังขออนุญาตและค้นหาพิกัด GPS...';
+                status.className = 'text-[11px] text-amber-400 font-mono-num animate-pulse';
+            }
 
-            if (navigator.geolocation) {
+            if ('geolocation' in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         const userLat = position.coords.latitude;
                         const userLng = position.coords.longitude;
+                        const accuracy = position.coords.accuracy || 10;
 
-                        spinner.classList.add('hidden');
-                        icon.classList.remove('hidden');
-                        status.textContent = '● ตรวจพบพิกัดปัจจุบัน (GPS Locked)';
-                        status.className = 'text-[11px] text-emerald-400 font-mono-num';
+                        if (spinner && icon) {
+                            spinner.classList.add('hidden');
+                            icon.classList.remove('hidden');
+                        }
+                        if (status) {
+                            status.textContent = `● ล็อคพิกัด GPS สำเร็จ (±${Math.round(accuracy)} ม.)`;
+                            status.className = 'text-[11px] text-emerald-400 font-mono-num font-bold';
+                        }
 
-                        // Smooth flyTo interaction
-                        map.flyTo([userLat, userLng], 17, {
-                            animate: true,
-                            duration: 1.8
-                        });
+                        // Update splash coords if still visible
+                        const splashCoords = document.getElementById('splash-coords');
+                        if (splashCoords) {
+                            splashCoords.textContent = `[GPS: ${userLat.toFixed(4)}°N, ${userLng.toFixed(4)}°E]`;
+                            splashCoords.classList.add('text-emerald-400');
+                        }
+
+                        // Immediately update form & HUD coordinates
+                        setFormCoordinates(userLat, userLng);
+
+                        // Smooth tactical flyTo animation to user's real location
+                        if (map) {
+                            map.flyTo([userLat, userLng], 17, {
+                                animate: true,
+                                duration: 1.8
+                            });
+                        }
 
                         setTimeout(() => {
                             createOrUpdateMarker(userLat, userLng, true);
                             updateRescueRoute(userLat, userLng);
-                            sfx.playSonar();
+                            try { sfx.playSonar(); } catch (e) {}
                             Toast.show({
-                                title: 'พบพิกัดของคุณแล้ว',
-                                message: `ล็อคพิกัดดาวเทียม ${userLat.toFixed(4)}, ${userLng.toFixed(4)} สำเร็จ`,
+                                title: isAuto ? '📍 ตรวจพบตำแหน่ง GPS ของคุณแล้ว' : '📍 พิกัดดาวเทียมล็อคสำเร็จ',
+                                message: `ตำแหน่งปัจจุบัน ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (ความแม่นยำ ±${Math.round(accuracy)} ม.)`,
                                 type: 'success'
                             });
-                        }, 900);
+                        }, 700);
+
+                        // Auto-fill address in Thai via reverse geocoding if field is empty
+                        autoFetchAddressFromCoords(userLat, userLng);
                     },
                     (err) => {
                         console.warn('Geolocation denied or unavailable. Fallback to Warin Chamrap crisis zone:', err);
-                        spinner.classList.add('hidden');
-                        icon.classList.remove('hidden');
-                        status.textContent = '● จำลองพิกัดพื้นที่น้ำท่วม (Warin Flood Zone)';
-                        status.className = 'text-[11px] text-cyan-400 font-mono-num';
+                        if (spinner && icon) {
+                            spinner.classList.add('hidden');
+                            icon.classList.remove('hidden');
+                        }
+                        if (status) {
+                            status.textContent = '● จุดเฝ้าระวังน้ำท่วม อ.วารินชำราบ (แตะแผนที่เพื่อเปลี่ยน)';
+                            status.className = 'text-[11px] text-amber-400 font-mono-num';
+                        }
 
-                        // Smart fallback around Warin Chamrap flooded riverbank
-                        const fallbackLat = 15.2045 + (Math.random() - 0.5) * 0.006;
-                        const fallbackLng = 104.8582 + (Math.random() - 0.5) * 0.006;
+                        if (!isAuto) {
+                            // Smart fallback around Warin Chamrap flooded riverbank for demo
+                            const fallbackLat = 15.2045 + (Math.random() - 0.5) * 0.006;
+                            const fallbackLng = 104.8582 + (Math.random() - 0.5) * 0.006;
 
-                        map.flyTo([fallbackLat, fallbackLng], 17, {
-                            animate: true,
-                            duration: 1.8
-                        });
+                            if (map) {
+                                map.flyTo([fallbackLat, fallbackLng], 17, {
+                                    animate: true,
+                                    duration: 1.8
+                                });
+                            }
 
-                        setTimeout(() => {
-                            createOrUpdateMarker(fallbackLat, fallbackLng, true);
-                            updateRescueRoute(fallbackLat, fallbackLng);
-                            sfx.playSonar();
+                            setTimeout(() => {
+                                setFormCoordinates(fallbackLat, fallbackLng);
+                                createOrUpdateMarker(fallbackLat, fallbackLng, true);
+                                updateRescueRoute(fallbackLat, fallbackLng);
+                                try { sfx.playSonar(); } catch (e) {}
+                                Toast.show({
+                                    title: 'พิกัดพื้นที่ประสบภัยจำลอง',
+                                    message: 'ใช้จุดเฝ้าระวังน้ำท่วม อ.วารินชำราบ (แตะบนแผนที่เพื่อเปลี่ยนจุดได้)',
+                                    type: 'info'
+                                });
+                            }, 700);
+                        } else {
+                            // Gentle info toast on auto-deny/timeout
                             Toast.show({
-                                title: 'พิกัดพื้นที่ประสบภัยจำลอง',
-                                message: `ใช้พิกัดจุดเฝ้าระวังน้ำท่วม อ.วารินชำราบ เพื่อการสาธิตระบบ`,
+                                title: 'ระบบใช้พิกัดจุดเฝ้าระวังน้ำท่วม',
+                                message: 'สามารถแตะบนแผนที่ หรือกดปุ่ม "ค้นหาพิกัดฉันปัจจุบัน" เพื่อระบุตำแหน่งได้',
                                 type: 'info'
                             });
-                        }, 900);
+                        }
                     },
-                    { enableHighAccuracy: true, timeout: 8000 }
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
                 );
             } else {
-                Toast.show({
-                    title: 'ไม่รองรับ Geolocation',
-                    message: 'อุปกรณ์ของคุณไม่รองรับการจับพิกัด GPS อัตโนมัติ',
-                    type: 'error'
+                if (status) {
+                    status.textContent = '● อุปกรณ์ไม่รองรับ GPS (แตะบนแผนที่เพื่อปักหมุด)';
+                    status.className = 'text-[11px] text-amber-400 font-mono-num';
+                }
+                if (!isAuto) {
+                    Toast.show({
+                        title: 'ไม่รองรับ Geolocation',
+                        message: 'อุปกรณ์ของคุณไม่รองรับการจับพิกัด GPS อัตโนมัติ (แตะบนแผนที่แทนได้)',
+                        type: 'error'
+                    });
+                }
+            }
+        }
+
+        // Helper: Reverse Geocode to help victims pre-fill road/subdistrict/district
+        async function autoFetchAddressFromCoords(lat, lng) {
+            try {
+                const addressEl = document.getElementById('input-address');
+                // Only prefill if currently empty so we never overwrite user's custom text
+                if (!addressEl || addressEl.value.trim().length > 0) return;
+
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=th`, {
+                    headers: { 'Accept': 'application/json' }
                 });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && data.address) {
+                    const a = data.address;
+                    const parts = [];
+                    if (a.road) parts.push(`ถ.${a.road}`);
+                    if (a.suburb || a.village || a.neighbourhood) parts.push(a.suburb || a.village || a.neighbourhood);
+                    if (a.subdistrict) parts.push(`ต.${a.subdistrict}`);
+                    if (a.district) parts.push(`อ.${a.district}`);
+                    if (a.province || a.state) parts.push(`จ.${a.province || a.state}`);
+
+                    const detected = parts.length > 0 ? parts.join(' ') : (data.display_name || '');
+                    if (detected && (!addressEl.value || addressEl.value.trim() === '')) {
+                        addressEl.value = detected;
+                        const hint = document.getElementById('address-auto-hint');
+                        if (hint) {
+                            hint.innerHTML = `<span class="text-emerald-400 font-semibold">✓ ดึงพื้นที่จากพิกัด GPS อัตโนมัติ:</span> ${detected} <span class="text-slate-400">(สามารถพิมพ์รายละเอียดบ้านเลขที่หรือจุดสังเกตเพิ่มได้)</span>`;
+                            hint.classList.remove('hidden');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log('Reverse geocode bypassed:', err);
             }
         }
 
