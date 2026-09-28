@@ -1,0 +1,1773 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQNow - ระบบแจ้งพิกัดและประสานกู้ภัยน้ำท่วมฉุกเฉิน (SOS Emergency Dispatch)</title>
+    <meta name="description" content="ระบบแจ้งพิกัดฉุกเฉินและคัดกรองระดับความเร่งด่วนสำหรับผู้ประสบภัยน้ำท่วม ResQNow Tactical Rescue Network">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        tactical: {
+                            900: '#070a13',
+                            800: '#0e1626',
+                            700: '#1b273d',
+                            cyan: '#06b6d4',
+                            red: '#ef4444',
+                            amber: '#f59e0b',
+                            emerald: '#10b981'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                        tactical: ['Orbitron', 'monospace'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Custom Tactical Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
+
+    <!-- ==========================================================================
+         HIGH-TECH SPLASH SCREEN (LANDING ENTRY & SMOOTH TRANSITION)
+         ========================================================================== -->
+    <div id="resq-splash-screen" class="fixed inset-0 z-[999999] flex flex-col items-center justify-center overflow-hidden select-none">
+        
+        <!-- Animated High-Tech Laser Scanline -->
+        <div class="splash-scanline"></div>
+
+        <!-- Top Corner Telemetry -->
+        <div class="absolute top-6 left-6 font-mono-num text-[11px] text-cyan-400/80 tracking-widest hidden sm:block">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>[SAT-UPLINK: THEOS-2 / SENTINEL-1A]</span>
+            </div>
+            <div class="text-slate-400 text-[10px] mt-0.5">[ENCRYPTION: AES-256-GCM / MIL-STD-188]</div>
+        </div>
+        <div class="absolute top-6 right-6 font-mono-num text-[11px] text-cyan-400/80 tracking-widest flex items-center gap-3">
+            <div class="hidden md:block text-slate-400 text-[10px]">[COORDS: 15.2045°N, 104.8582°E]</div>
+            <button type="button" onclick="dismissSplashScreen()" class="px-3.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700 hover:border-cyan-400 text-slate-200 hover:text-white text-xs font-semibold shadow-lg transition-all flex items-center gap-1.5 active:scale-95">
+                <span>⚡ ข้าม (Skip Intro)</span>
+            </button>
+        </div>
+
+        <!-- Centerpiece Brand & Telemetry -->
+        <div class="relative z-10 flex flex-col items-center text-center px-4 max-w-lg">
+            
+            <!-- Glowing Tactical Logo with Pulse & Orbiting Ring -->
+            <div class="relative mb-6">
+                <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-500 p-1 shadow-[0_0_50px_rgba(239,68,68,0.55)] flex items-center justify-center animate-pulse">
+                    <div class="w-full h-full bg-[#080d1a] rounded-xl flex items-center justify-center border border-white/20 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-t from-rose-500/25 to-transparent"></div>
+                        <svg class="w-12 h-12 sm:w-14 sm:h-14 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.9)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                </div>
+                <!-- Orbiting Radar Ring -->
+                <div class="splash-orbit-ring"></div>
+            </div>
+
+            <!-- System Title & Subtitle -->
+            <div class="space-y-2 mb-8">
+                <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 text-[10px] font-tactical font-bold tracking-widest uppercase mb-1 shadow-[0_0_20px_rgba(6,182,212,0.35)]">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                    TACTICAL FLOOD RESCUE SYSTEM
+                </div>
+                <h1 class="text-4xl sm:text-5xl font-tactical font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-white tracking-wider">
+                    ResQ<span class="text-rose-500">Now</span>
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-300 font-sans tracking-wide">
+                    ระบบสั่งการและคัดกรองกู้ภัยอุทกภัยทางน้ำอัจฉริยะ (Real-time Tactical OS)
+                </p>
+            </div>
+
+            <!-- Sleek High-Tech Progress Bar -->
+            <div class="w-full max-w-md space-y-2.5">
+                <div class="flex items-center justify-between text-xs font-mono-num text-slate-400">
+                    <span id="splash-status-text" class="text-cyan-300 flex items-center gap-2 font-semibold">
+                        <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                        Initializing Satellite Uplink...
+                    </span>
+                    <span id="splash-percent-text" class="text-white font-bold text-sm font-tactical">15%</span>
+                </div>
+
+                <!-- Progress Bar Track -->
+                <div class="w-full h-2.5 bg-slate-900/90 border border-slate-700/80 rounded-full overflow-hidden p-0.5 shadow-inner">
+                    <div id="splash-progress-bar" class="h-full bg-gradient-to-r from-cyan-500 via-sky-400 to-emerald-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_15px_#06b6d4]" style="width: 15%;"></div>
+                </div>
+
+                <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono-num pt-1">
+                    <span>GISTDA SENTINEL-1 SAR</span>
+                    <span>THAIWATER RIVER SENSORS</span>
+                    <span>ICS PROTOCOL 2.6</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Security / Status Footer -->
+        <div class="absolute bottom-6 font-mono-num text-[11px] text-slate-500 tracking-wider flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 live-beacon"></span>
+            <span>CONNECTED TO NATIONAL DISASTER WARNING NETWORK (NDWC / DDPM)</span>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         TOP HUD BAR / EMERGENCY NAV
+         ========================================================================== -->
+    <header class="sticky top-0 z-50 tactical-card border-b border-cyan-500/20 px-4 lg:px-8 py-3 backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Brand & Status -->
+            <div class="flex items-center gap-3">
+                <div class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-500 to-amber-500 p-0.5 shadow-lg shadow-red-500/30 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                    </span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-tactical text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-white tracking-wider">
+                            ResQ<span class="text-rose-500">Now</span>
+                        </span>
+                        <span class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 rounded-md">
+                            Tactical SOS v2.6
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 live-beacon"></span>
+                        ศูนย์รับแจ้งเหตุและคัดกรองภัยพิบัติทางน้ำเรียลไทม์
+                    </p>
+                </div>
+            </div>
+
+            <!-- Emergency Dispatch Hotline & Switch to Admin Command -->
+            <div class="flex items-center gap-2 sm:gap-3 ml-auto">
+                <div class="hidden md:flex items-center gap-3 pr-3 border-r border-slate-700/60 text-xs">
+                    <span class="text-slate-400">สายด่วนช่วยเหลือ:</span>
+                    <a href="tel:1784" class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-rose-400 font-mono-num font-bold hover:border-rose-500 transition-colors">
+                        📞 ปภ. 1784
+                    </a>
+                    <a href="tel:1669" class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-cyan-400 font-mono-num font-bold hover:border-cyan-500 transition-colors">
+                        🚑 กู้ชีพ 1669
+                    </a>
+                </div>
+
+                <!-- Replay Splash Intro Button -->
+                <button type="button" onclick="replaySplashScreen()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 transition-all flex items-center gap-1.5" title="เล่น Intro Splash Screen อีกครั้ง">
+                    <span>🎬 Intro</span>
+                </button>
+
+                <!-- Seed Demo Data for Pitching Button -->
+                <button id="btn-seed-demo" onclick="triggerPitchDemoSeed()" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 hover:border-amber-400 transition-all flex items-center gap-1.5" title="โหลดข้อมูลสถานการณ์จำลองสำหรับการนำเสนอ (Pitching Demo)">
+                    <span>⚡ โหลดเคสทดสอบ</span>
+                </button>
+
+                <!-- Link to Rescue Dashboard -->
+                <a href="dashboard.html" class="tactical-btn tactical-btn-cyan shimmer px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm text-white flex items-center gap-2 shadow-lg shadow-cyan-500/20">
+                    <svg class="w-4 h-4 text-cyan-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span>ศูนย์สั่งการกู้ภัย</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-black/40 font-mono-num text-cyan-200" id="badge-case-count">7 เคส</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==========================================================================
+         MAIN INTERACTION WORKSPACE (TWO-COLUMN RESPONSIVE)
+         ========================================================================== -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- ======================================================================
+             LEFT COLUMN: SOS DISPATCH FORM (STAGGERED ANIMATIONS)
+             ====================================================================== -->
+        <section class="lg:col-span-6 xl:col-span-5 flex flex-col gap-5">
+            
+            <!-- Hero Announcement Banner (Stagger 1) -->
+            <div class="animate-stagger-1 tactical-card rounded-2xl p-4 border-l-4 border-rose-500 bg-gradient-to-r from-rose-950/40 via-slate-900/80 to-slate-900/90 flex items-start gap-3">
+                <div class="p-2 rounded-xl bg-rose-500/20 text-rose-400 mt-0.5">
+                    <svg class="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 text-sm">
+                    <h1 class="font-bold text-base text-rose-300">แจ้งขอความช่วยเหลือเหตุอุทกภัย</h1>
+                    <p class="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                        ระบบจะคำนวณลำดับความสำคัญ (Triage Priority) อัตโนมัติและส่งพิกัดตรงถึงเรือกู้ภัยทันที
+                    </p>
+                </div>
+            </div>
+
+            <!-- Form Container Card (Stagger 2) -->
+            <form id="sos-form" class="animate-stagger-2 tactical-card hud-corner-tl rounded-2xl p-5 sm:p-6 space-y-6" onsubmit="handleSosSubmit(event)">
+                
+                <!-- SECTION 1: ผู้แจ้ง & จำนวนคน -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                        <h2 class="text-sm font-bold tracking-wide uppercase text-cyan-400 flex items-center gap-2">
+                            <span>01</span> ข้อมูลผู้ประสบภัย
+                        </h2>
+                        <span class="text-[11px] text-slate-400">กรุณากรอกเบอร์ติดต่อให้ถูกต้อง</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="input-name" class="block text-xs font-medium text-slate-300 mb-1.5">ชื่อ-นามสกุล / ผู้ติดต่อ *</label>
+                            <input type="text" id="input-name" required placeholder="เช่น ลุงสมศักดิ์ / นิดหน่อย"
+                                class="w-full bg-slate-950/70 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                        </div>
+                        <div>
+                            <label for="input-phone" class="block text-xs font-medium text-slate-300 mb-1.5">เบอร์โทรศัพท์ติดต่อด่วน *</label>
+                            <input type="tel" id="input-phone" required placeholder="08x-xxx-xxxx"
+                                class="w-full bg-slate-950/70 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono-num placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                        </div>
+                    </div>
+
+                    <!-- Headcount Stepper -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1.5">จำนวนคนที่ติดค้างทั้งหมด (รวมตนเอง)</label>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="adjustHeadcount(-1)" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center text-lg">-</button>
+                            <input type="number" id="input-headcount" min="1" max="50" value="3" readonly
+                                class="w-20 text-center bg-slate-950 border border-cyan-500/50 rounded-xl py-2 text-xl font-bold font-mono-num text-cyan-400 shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]">
+                            <button type="button" onclick="adjustHeadcount(1)" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center text-lg">+</button>
+                            
+                            <div class="flex-1 flex gap-1.5 ml-2">
+                                <button type="button" onclick="setHeadcount(1)" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">1 คน</button>
+                                <button type="button" onclick="setHeadcount(4)" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">4 คน</button>
+                                <button type="button" onclick="setHeadcount(8)" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">8+ คน</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: ระดับน้ำท่วมปัจจุบัน -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                        <h2 class="text-sm font-bold tracking-wide uppercase text-cyan-400 flex items-center gap-2">
+                            <span>02</span> ระดับน้ำในจุดที่ติดค้าง
+                        </h2>
+                        <span class="text-[11px] text-amber-400 font-semibold" id="water-level-tag">ระดับเอว (เฝ้าระวัง)</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2.5" id="water-level-grid">
+                        <div class="triage-option p-3 rounded-xl border border-slate-700 bg-slate-900/60 flex flex-col items-center text-center gap-1.5" onclick="selectWaterLevel('medium', this)">
+                            <span class="text-xl">🌊</span>
+                            <span class="text-xs font-semibold text-slate-200">ข้อเท้า-เข่า</span>
+                            <span class="text-[10px] text-slate-400">30 - 50 ซม.</span>
+                        </div>
+                        <div class="triage-option selected p-3 rounded-xl border border-cyan-500 bg-slate-900/60 flex flex-col items-center text-center gap-1.5" onclick="selectWaterLevel('high', this)">
+                            <span class="text-xl">🏊</span>
+                            <span class="text-xs font-semibold text-cyan-300">ระดับเอว-อก</span>
+                            <span class="text-[10px] text-slate-400">80 - 120 ซม.</span>
+                        </div>
+                        <div class="triage-option p-3 rounded-xl border border-slate-700 bg-slate-900/60 flex flex-col items-center text-center gap-1.5" onclick="selectWaterLevel('critical', this)">
+                            <span class="text-xl animate-bounce">🚨</span>
+                            <span class="text-xs font-semibold text-rose-400">มิดชั้น 1 / หลังคา</span>
+                            <span class="text-[10px] text-rose-300 font-mono-num">> 150 ซม. วิกฤต</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: TRIAGE CHECKBOXES (ความเร่งด่วน & กลุ่มเปราะบาง) -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                        <h2 class="text-sm font-bold tracking-wide uppercase text-cyan-400 flex items-center gap-2">
+                            <span>03</span> สิ่งที่ต้องการ / กลุ่มเปราะบาง
+                        </h2>
+                        <span class="text-[11px] text-slate-400">เลือกทุกข้อที่ตรงกับสภาพจริง</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="triage-options-container">
+                        
+                        <!-- Option 1: เรืออพยพ -->
+                        <div class="triage-option selected p-3 rounded-xl border border-cyan-500/40 bg-slate-900/70 flex items-center gap-3" onclick="toggleTriageOption(this, 'boat', false)">
+                            <div class="tactical-checkbox">
+                                <svg class="w-3.5 h-3.5 text-white check-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="text-xs">
+                                <div class="font-semibold text-slate-200">ต้องการเรืออพยพด่วน</div>
+                                <div class="text-[10px] text-slate-400">กระแสน้ำแรง เดินลุยไม่ได้</div>
+                            </div>
+                        </div>
+
+                        <!-- Option 2: ผู้ป่วยติดเตียง (CRITICAL RED) -->
+                        <div class="triage-option p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center gap-3" onclick="toggleTriageOption(this, 'bedridden', true)">
+                            <div class="tactical-checkbox">
+                                <svg class="w-3.5 h-3.5 text-white check-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="text-xs">
+                                <div class="font-bold text-rose-400 flex items-center gap-1">
+                                    <span>🛏️ ผู้ป่วยติดเตียง / บาดเจ็บ</span>
+                                </div>
+                                <div class="text-[10px] text-rose-300">วิกฤตสูงสุด (Code Red)</div>
+                            </div>
+                        </div>
+
+                        <!-- Option 3: เด็กอ่อน/ทารก -->
+                        <div class="triage-option p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center gap-3" onclick="toggleTriageOption(this, 'infant', true)">
+                            <div class="tactical-checkbox">
+                                <svg class="w-3.5 h-3.5 text-white check-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="text-xs">
+                                <div class="font-semibold text-slate-200">🍼 มีเด็กทารก / นมผงหมด</div>
+                                <div class="text-[10px] text-slate-400">ต้องการเสบียงเด็กอ่อน</div>
+                            </div>
+                        </div>
+
+                        <!-- Option 4: คนชรา -->
+                        <div class="triage-option p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center gap-3" onclick="toggleTriageOption(this, 'elderly', false)">
+                            <div class="tactical-checkbox">
+                                <svg class="w-3.5 h-3.5 text-white check-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="text-xs">
+                                <div class="font-semibold text-slate-200">👵 มีคนชรา / หญิงมีครรภ์</div>
+                                <div class="text-[10px] text-slate-400">ช่วยเหลือตัวเองได้จำกัด</div>
+                            </div>
+                        </div>
+
+                        <!-- Option 5: อาหาร/น้ำดื่ม -->
+                        <div class="triage-option selected p-3 rounded-xl border border-cyan-500/40 bg-slate-900/70 flex items-center gap-3" onclick="toggleTriageOption(this, 'food_water', false)">
+                            <div class="tactical-checkbox">
+                                <svg class="w-3.5 h-3.5 text-white check-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="text-xs">
+                                <div class="font-semibold text-slate-200">🍱 อาหาร / น้ำดื่มหมด</div>
+                                <div class="text-[10px] text-slate-400">ติดค้างเกิน 12 ชม.</div>
+                            </div>
+                        </div>
+
+                        <!-- Option 6: ยารักษาโรค / ออกซิเจน -->
+                        <div class="triage-option p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center gap-3" onclick="toggleTriageOption(this, 'medicine', true)">
+                            <div class="tactical-checkbox">
+                                <svg class="w-3.5 h-3.5 text-white check-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="text-xs">
+                                <div class="font-semibold text-slate-200">💊 ยาเร่งด่วน / ออกซิเจน</div>
+                                <div class="text-[10px] text-slate-400">โรคประจำตัว เบาหวาน หัวใจ</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- DYNAMIC TRIAGE PRIORITY HUD GAUGE -->
+                <div class="p-3.5 rounded-xl border border-amber-500/30 bg-amber-950/20 flex items-center justify-between transition-all duration-300" id="triage-hud-banner">
+                    <div class="flex items-center gap-2.5">
+                        <div id="triage-pulse-dot" class="w-3 h-3 rounded-full bg-amber-400 live-beacon"></div>
+                        <div>
+                            <div class="text-[10px] tracking-wider text-slate-400 uppercase font-tactical">AI Triage Assessment</div>
+                            <div id="triage-label-display" class="text-xs font-bold text-amber-300">CODE ORANGE (เร่งด่วนสูง)</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] text-slate-400 font-tactical">Priority Score</div>
+                        <div id="triage-score-display" class="font-mono-num text-sm font-bold text-amber-300">55/100</div>
+                    </div>
+                </div>
+
+                <!-- SECTION 4: พิกัด GPS & สถานที่สังเกต -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                        <h2 class="text-sm font-bold tracking-wide uppercase text-cyan-400 flex items-center gap-2">
+                            <span>04</span> พิกัดและจุดสังเกต
+                        </h2>
+                        <span class="text-[11px] text-emerald-400 font-mono-num" id="gps-status-indicator">● GPS Sync Ready</span>
+                    </div>
+
+                    <!-- Location Auto-detect Button -->
+                    <button type="button" id="btn-geolocate" onclick="detectUserLocation()" 
+                        class="tactical-btn w-full py-2.5 px-4 rounded-xl bg-slate-800/90 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/50 hover:border-cyan-400 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/40">
+                        <svg class="w-4 h-4 animate-spin hidden" id="geo-spinner" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <svg class="w-4 h-4 text-cyan-400" id="geo-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span class="text-xs font-bold tracking-wide">ค้นหาพิกัดฉันปัจจุบัน (GPS Locate Me)</span>
+                    </button>
+
+                    <!-- Coordinates Display & Address -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1 font-tactical">LATITUDE</label>
+                            <input type="text" id="input-lat" readonly value="15.2045"
+                                class="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-cyan-400 font-mono-num">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1 font-tactical">LONGITUDE</label>
+                            <input type="text" id="input-lng" readonly value="104.8582"
+                                class="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-cyan-400 font-mono-num">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="input-address" class="block text-xs font-medium text-slate-300 mb-1">จุดสังเกต / สีบ้าน / ซอย *</label>
+                        <textarea id="input-address" rows="2" required placeholder="เช่น ชุมชนเกตุแก้ว ซอย 4 บ้านสองชั้นไม้ หลังคาสีฟ้า ติดริมน้ำ"
+                            class="w-full bg-slate-950/70 border border-slate-700 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"></textarea>
+                    </div>
+                </div>
+
+                <!-- SUBMIT SOS BUTTON (BOUNCE & GLOW) -->
+                <div class="pt-2">
+                    <button type="submit" id="btn-submit-sos"
+                        class="tactical-btn tactical-btn-red shimmer w-full py-4 rounded-xl text-white font-bold text-base tracking-wide flex items-center justify-center gap-3 shadow-xl shadow-red-600/30">
+                        <svg class="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>ส่งสัญญาณขอความช่วยเหลือฉุกเฉิน (DISPATCH SOS)</span>
+                    </button>
+                    <p class="text-[11px] text-center text-slate-500 mt-2">
+                        🔒 ข้อมูลจะถูกส่งตรงเข้าระบบประสานงานเรือกู้ภัยและจัดเก็บในระบบทันที
+                    </p>
+                </div>
+
+            </form>
+
+        </section>
+
+        <!-- ======================================================================
+             RIGHT COLUMN: ADVANCED INTERACTIVE TACTICAL MAP & LIVE DISPATCH LOG
+             ====================================================================== -->
+        <section class="lg:col-span-6 xl:col-span-7 flex flex-col gap-4">
+            
+            <!-- Map Container Card (Stagger 3) -->
+            <div class="animate-stagger-3 tactical-card hud-corner-tl rounded-2xl p-4 flex flex-col h-[480px] lg:h-[520px] relative overflow-hidden">
+                
+                <!-- Map Header HUD Controls -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
+                        <span class="font-tactical text-xs tracking-wider text-cyan-300 font-bold uppercase">
+                            TACTICAL SATELLITE HUD / AI ROUTE
+                        </span>
+                    </div>
+
+                    <!-- Crosshair Coordinates & Map Layer Switcher -->
+                    <div class="flex items-center gap-2">
+                        <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/85 border border-slate-700/60 font-mono-num text-[11px] text-cyan-400">
+                            <span class="text-slate-500">POS:</span>
+                            <span id="hud-lat">15.2045</span>, <span id="hud-lng">104.8582</span>
+                        </div>
+                        <button type="button" id="btn-toggle-tiles" onclick="switchMapLayer()" class="px-2.5 py-1 rounded-lg bg-slate-800 text-[11px] text-cyan-300 hover:text-white border border-cyan-500/40 transition-colors flex items-center gap-1">
+                            <span>🛰️ สลับ Dark / ดาวเทียม</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Leaflet Map Element -->
+                <div class="flex-1 w-full rounded-xl overflow-hidden relative border border-cyan-500/40 shadow-[0_0_25px_rgba(0,0,0,0.8)]">
+                    <div id="map"></div>
+
+                    <!-- Sleek GISTDA Satellite Sync Active HUD Widget -->
+                    <div class="gistda-satellite-hud absolute top-3 left-3 z-20 flex flex-col gap-1.5 pointer-events-auto">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2">
+                                <span class="relative flex h-2.5 w-2.5">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+                                </span>
+                                <span class="font-tactical font-bold text-white text-[11px] tracking-wider flex items-center gap-1">
+                                    <span>📡 LIVE: GISTDA Satellite Sync Active</span>
+                                </span>
+                            </div>
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-mono-num bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                0.4s
+                            </span>
+                        </div>
+
+                        <!-- Quick Flood Basin Switcher for Pitching Demo -->
+                        <div class="flex items-center gap-1 pt-1 border-t border-slate-700/60">
+                            <span class="text-[9px] text-slate-400 font-tactical">โซนดาวเทียม:</span>
+                            <button type="button" onclick="switchFloodRegion('ubon')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition-all" title="แม่น้ำมูล วารินชำราบ">
+                                🔴 อุบลฯ
+                            </button>
+                            <button type="button" onclick="switchFloodRegion('chiangrai')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all" title="แม่สาย เชียงราย">
+                                🟠 แม่สาย
+                            </button>
+                            <button type="button" onclick="switchFloodRegion('bangkok')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition-all" title="รังสิต เจ้าพระยา">
+                                🔵 กทม.
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Rescue Route Telemetry HUD floating on Map -->
+                    <div id="route-telemetry-hud" class="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-xl bg-slate-950/90 backdrop-blur-md border border-cyan-400/50 text-xs shadow-2xl flex items-center gap-2.5 pointer-events-none">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                            <span class="text-cyan-300 font-tactical font-bold text-[10px]">AI RESCUE PATH</span>
+                        </div>
+                        <div class="text-slate-300 font-mono-num text-[11px] border-l border-slate-700/80 pl-2 flex items-center gap-2">
+                            <span>ระยะทาง: <strong class="text-white font-bold" id="route-distance-text">1.2 กม.</strong></span>
+                            <span>ETA เรือ: <strong class="text-cyan-400 font-bold" id="route-eta-text">~8-12 นาที</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Water Level & Flood Zones Legend HUD Floating Widget -->
+                    <div class="pointer-events-none absolute bottom-3 left-3 z-20 px-3 py-2 rounded-xl bg-slate-950/90 backdrop-blur-md border border-slate-700/80 text-[10px] space-y-1 shadow-2xl">
+                        <div class="font-bold text-slate-300 uppercase font-tactical flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                            <span>GISTDA LIVE RADAR HEATMAP</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 live-beacon shadow-[0_0_8px_#ef4444]"></span> 
+                            <span class="text-rose-300 font-semibold">แดงกระพริบ: น้ำลึกวิกฤต (>1.9ม. / เชี่ยวจัด)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b]"></span> 
+                            <span class="text-amber-300 font-semibold">ส้มกระพริบ: เสี่ยงปานกลาง (0.8-1.2ม. / ระดับอก)</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-slate-300">
+                            <span>🏥 รพ.ฉุกเฉิน</span>
+                            <span>•</span>
+                            <span>🛡️ ฐานกู้ภัย/ที่พักพิง</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Telemetry Bar -->
+                <div class="mt-2.5 flex items-center justify-between text-[11px] text-slate-400 px-1 font-mono-num">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 live-beacon"></span>
+                        <span id="active-tile-attribution">LAYER: GOOGLE MAPS HYBRID SATELLITE (REAL-WORLD IMAGERY)</span>
+                    </div>
+                    <div class="text-cyan-400 font-semibold">
+                        NEON RESCUE ROUTE: ONLINE
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- LIVE DISPATCH FEED SECTION (Stagger 4) -->
+            <div class="animate-stagger-4 tactical-card hud-corner-tl rounded-2xl p-4 border border-cyan-500/25 bg-slate-900/80 backdrop-blur-xl flex flex-col">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2.5 mb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500 live-beacon"></span>
+                        <h3 class="font-tactical text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🚨 LIVE DISPATCH LOG</span>
+                            <span class="text-[10px] text-slate-400 font-mono-num font-normal">(ภารกิจเรือกู้ภัยสด)</span>
+                        </h3>
+                    </div>
+                    <div class="flex items-center gap-2 text-[10px] font-mono-num text-emerald-400">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span id="dispatch-feed-count">4 ACTIVE UNITS</span>
+                    </div>
+                </div>
+
+                <!-- Scrolling Tactical Feed Items -->
+                <div class="dispatch-feed-scroll space-y-2 pr-1" id="live-dispatch-feed-list">
+                    <!-- Populated dynamically by JS -->
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- ==========================================================================
+         SUCCESS MISSION DISPATCH MODAL (WOW FACTOR TACTICAL HUD)
+         ========================================================================== -->
+    <div id="success-modal" class="fixed inset-0 z-[100000] hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md transition-all duration-300">
+        <div class="tactical-card hud-corner-tl rounded-2xl max-w-lg w-full p-6 sm:p-7 border border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.3)] transform transition-all duration-300 scale-95 opacity-0" id="success-modal-panel">
+            
+            <!-- Modal Header -->
+            <div class="flex items-start justify-between border-b border-slate-700/60 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-2xl shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                        ✅
+                    </div>
+                    <div>
+                        <div class="text-[11px] font-tactical text-emerald-400 font-bold uppercase tracking-wider">
+                            MISSION REGISTERED
+                        </div>
+                        <h3 class="text-lg font-bold text-white">บันทึกพิกัดและส่งสัญญาณสำเร็จ!</h3>
+                    </div>
+                </div>
+                <button type="button" onclick="closeSuccessModal()" class="text-slate-400 hover:text-white p-1 text-xl">✕</button>
+            </div>
+
+            <!-- Case Summary Telemetry -->
+            <div class="my-5 space-y-3">
+                <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-tactical">CASE TICKET NUMBER</div>
+                        <div class="text-base font-bold font-mono-num text-cyan-400" id="modal-case-id">RQ-2026-0901</div>
+                    </div>
+                    <div id="modal-priority-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-500/20 border border-rose-500/40 text-rose-400">
+                        CODE RED
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                        <span class="text-slate-400 block text-[10px]">ผู้ประสบภัย:</span>
+                        <span class="font-bold text-slate-200" id="modal-victim-name">คุณยายบุญมี</span>
+                        <span class="text-slate-400 block mt-1" id="modal-headcount">4 คน</span>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                        <span class="text-slate-400 block text-[10px]">พิกัด GPS:</span>
+                        <span class="font-mono-num text-cyan-400 font-semibold" id="modal-coords">15.2045, 104.8582</span>
+                        <span class="text-emerald-400 block mt-1 font-mono-num">ETA เรือ: ~15-25 นาที</span>
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs">
+                    <span class="text-slate-400 block text-[10px]">ความต้องการเร่งด่วน:</span>
+                    <div id="modal-needs-list" class="text-slate-200 mt-1 space-y-0.5">
+                        - เรืออพยพด่วน
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                <a href="dashboard.html" class="tactical-btn tactical-btn-cyan shimmer flex-1 py-3 px-4 rounded-xl text-center text-white font-bold text-sm flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span>ดูสถานะในศูนย์สั่งการ (Rescue Dashboard)</span>
+                </a>
+                <button type="button" onclick="closeSuccessModal()" class="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         JAVASCRIPT LOGIC: LEAFLET MAP, FORM CAPTURE, LOCALSTORAGE
+         ========================================================================== -->
+    <script src="shared.js"></script>
+    <script>
+        // State variables
+        let map = null;
+        let activeMarker = null;
+        let commandCenterMarker = null;
+        let rescueRoutePolyline = null;
+        let floodZonesGroup = null;
+        let poiLayerGroup = null;
+        let victimMarkersGroup = null;
+        let victimMarkersMap = {};
+        let currentTileLayer = null;
+        let isSatellite = true; // Default to Google Hybrid Satellite!
+        
+        let selectedWaterLevel = 'high';
+        let selectedTriageItems = ['boat', 'food_water'];
+        let selectedVulnerabilities = [];
+
+        // Tile Providers (Google Maps Hybrid as real-world tactical satellite, CartoDB Dark as watermark-free alternative)
+        const GOOGLE_HYBRID = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+        const CARTODB_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+        // Initialize App on DOM Load
+        document.addEventListener('DOMContentLoaded', () => {
+            initSplashScreen();
+            initMap();
+            updateTriagePriorityGauge();
+            updateBadgeCount();
+            renderLiveDispatchFeed();
+
+            // Listen for multi-tab updates
+            window.addEventListener('resqnow-db-updated', () => {
+                updateBadgeCount();
+                renderVictimCaseMarkers();
+                renderLiveDispatchFeed();
+            });
+
+            // Allow ESC key to skip splash screen
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') dismissSplashScreen();
+            });
+        });
+
+        // ==========================================================================
+        // 1. High-Tech Splash Screen Timeline & Transition Controls
+        // ==========================================================================
+        let splashDismissed = false;
+        let splashTimers = [];
+
+        function clearSplashTimers() {
+            splashTimers.forEach(t => clearTimeout(t));
+            splashTimers = [];
+        }
+
+        function initSplashScreen() {
+            clearSplashTimers();
+            splashDismissed = false;
+            const splash = document.getElementById('resq-splash-screen');
+            const statusText = document.getElementById('splash-status-text');
+            const percentText = document.getElementById('splash-percent-text');
+            const progressBar = document.getElementById('splash-progress-bar');
+            if (!splash) return;
+
+            splash.style.display = 'flex';
+            splash.classList.remove('splash-fade-out');
+
+            const sequence = [
+                { time: 0, text: 'Initializing Satellite Uplink...', percent: 18 },
+                { time: 650, text: 'Fetching GISTDA Real-time Flood Data...', percent: 48 },
+                { time: 1300, text: 'Connecting to ThaiWater Sensors...', percent: 75 },
+                { time: 1850, text: 'Calibrating Tactical GIS Coordinates...', percent: 92 },
+                { time: 2350, text: 'All Systems Operational • Launching Dashboard...', percent: 100 }
+            ];
+
+            sequence.forEach(step => {
+                const timer = setTimeout(() => {
+                    if (splashDismissed) return;
+                    if (statusText) {
+                        statusText.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span> ${step.text}`;
+                    }
+                    if (percentText) percentText.textContent = `${step.percent}%`;
+                    if (progressBar) progressBar.style.width = `${step.percent}%`;
+                }, step.time);
+                splashTimers.push(timer);
+            });
+
+            // Smooth fade-out after 2.6s sequence
+            const endTimer = setTimeout(() => {
+                if (!splashDismissed) {
+                    dismissSplashScreen();
+                }
+            }, 2700);
+            splashTimers.push(endTimer);
+        }
+
+        function dismissSplashScreen(force = false) {
+            const splash = document.getElementById('resq-splash-screen');
+            if (!splash) return;
+            if (!force && splashDismissed && splash.style.display === 'none') return;
+            splashDismissed = true;
+            clearSplashTimers();
+
+            // Trigger tactical sound chime
+            try { sfx.playSonar(); } catch (e) {}
+
+            splash.classList.add('splash-fade-out');
+
+            const hideTimer = setTimeout(() => {
+                splash.style.display = 'none';
+                if (map) {
+                    map.invalidateSize();
+                }
+            }, 800);
+            splashTimers.push(hideTimer);
+        }
+
+        function replaySplashScreen() {
+            clearSplashTimers();
+            splashDismissed = false;
+            const splash = document.getElementById('resq-splash-screen');
+            if (!splash) return;
+            splash.style.display = 'flex';
+            splash.classList.remove('splash-fade-out');
+            initSplashScreen();
+        }
+
+        // ==========================================================================
+        // 2. Initialize Leaflet Map with Google Maps Hybrid Real Satellite
+        // ==========================================================================
+        function initMap() {
+            const initialLat = 15.2045;
+            const initialLng = 104.8582;
+
+            map = L.map('map', {
+                center: [initialLat, initialLng],
+                zoom: 15,
+                zoomControl: true,
+                attributionControl: false
+            });
+
+            // Set Google Maps Hybrid by default (Real-world tactical satellite imagery)
+            currentTileLayer = L.tileLayer(GOOGLE_HYBRID, {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            }).addTo(map);
+
+            // Add Simulated Live Radar Flood Heatmap (Pulsing Circles & Sweep Scan)
+            renderLiveRadarFloodHeatmap();
+
+            // Add Critical POIs (Hospitals & Rescue Command Centers / Safe Staging Zones)
+            renderCriticalPOIs();
+
+            // Add Layer Group for Color-coded Victim Pins
+            victimMarkersGroup = L.layerGroup().addTo(map);
+
+            // Add Rescue Command Center Marker
+            addCommandCenterMarker();
+
+            // Create Animated High-Tech Radar Blip Drop Marker for User
+            createOrUpdateMarker(initialLat, initialLng);
+
+            // Draw Animated Glowing Neon Rescue Route (Command Center -> User Pin)
+            updateRescueRoute(initialLat, initialLng);
+
+            // Render all active victim case markers on map
+            renderVictimCaseMarkers();
+
+            // Map Click Event
+            map.on('click', (e) => {
+                sfx.playClick();
+                setFormCoordinates(e.latlng.lat, e.latlng.lng);
+                createOrUpdateMarker(e.latlng.lat, e.latlng.lng, true);
+                updateRescueRoute(e.latlng.lat, e.latlng.lng);
+            });
+        }
+
+        // Render Simulated Live Radar Flood Heatmap (GISTDA SAR & Pulsing Concentric Circles)
+        function renderLiveRadarFloodHeatmap() {
+            if (!floodZonesGroup) {
+                floodZonesGroup = L.layerGroup().addTo(map);
+            } else {
+                floodZonesGroup.clearLayers();
+            }
+
+            FLOOD_RISK_ZONES.forEach(zone => {
+                const isRed = zone.type === 'deep_water_red';
+                const pulseClass = isRed ? 'radar-pulse-red' : 'radar-pulse-orange';
+                const badgeTag = isRed ? 'tag-red' : 'tag-orange';
+                const pxSize = zone.pixelSize || 250;
+
+                const radarHtml = `
+                    <div class="flood-radar-container ${pulseClass}" style="width: ${pxSize}px; height: ${pxSize}px;" title="${zone.name}">
+                        <!-- Translucent glowing core -->
+                        <div class="flood-radar-core"></div>
+                        <!-- Concentric expanding pulse waves -->
+                        <div class="radar-wave wave-1"></div>
+                        <div class="radar-wave wave-2"></div>
+                        <div class="radar-wave wave-3"></div>
+                        <!-- Rotating 360-degree radar sweep beam -->
+                        <div class="radar-sweep-beam"></div>
+                        <!-- Tactical Center HUD Badge -->
+                        <div class="radar-hud-tag ${badgeTag}">
+                            <div class="radar-tag-badge">
+                                <span>${isRed ? '🔴' : '🟠'}</span>
+                                <span>${isRed ? 'DEEP WATER ' + (zone.waterDepth ? zone.waterDepth.split(' ')[1] : '>1.8m') : 'FLOOD 0.8-1.2m'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const radarIcon = L.divIcon({
+                    className: 'custom-radar-pulse-layer',
+                    html: radarHtml,
+                    iconSize: [pxSize, pxSize],
+                    iconAnchor: [pxSize / 2, pxSize / 2]
+                });
+
+                const radarMarker = L.marker([zone.lat, zone.lng], { icon: radarIcon }).addTo(floodZonesGroup);
+
+                // Rich GISTDA Satellite Telemetry Popup
+                const popupContent = `
+                    <div class="p-3.5 text-xs space-y-2 min-w-[260px]">
+                        <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full ${isRed ? 'bg-rose-500 shadow-[0_0_8px_#ef4444]' : 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'} animate-ping"></span>
+                                <span class="font-tactical font-bold text-white text-[11px] uppercase tracking-wider">
+                                    ${isRed ? 'CRITICAL INUNDATION ZONE' : 'MODERATE FLOOD ZONE'}
+                                </span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[9px] font-bold ${
+                                isRed ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            }">
+                                GISTDA SAR
+                            </span>
+                        </div>
+
+                        <div>
+                            <div class="font-bold text-white text-sm">${zone.name}</div>
+                            <div class="text-[11px] text-cyan-300 font-mono-num mt-0.5">📍 ${zone.province} [${zone.lat.toFixed(4)}, ${zone.lng.toFixed(4)}]</div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-[11px] font-mono-num">
+                            <div>
+                                <span class="text-slate-400 block text-[10px]">ระดับน้ำเฉลี่ย:</span>
+                                <strong class="${isRed ? 'text-rose-400' : 'text-amber-400'} font-bold">${zone.waterDepth}</strong>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block text-[10px]">ความเร็วกระแสน้ำ:</span>
+                                <strong class="text-white">${zone.velocity}</strong>
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] text-slate-300 leading-relaxed bg-slate-900/60 p-2 rounded border border-slate-800/80">
+                            <strong>คำเตือนปฏิบัติการ:</strong> ${zone.alert}
+                        </div>
+
+                        <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800 font-mono-num">
+                            <span>📡 เซนเซอร์: ${zone.sensor}</span>
+                            <span class="text-emerald-400 font-semibold">● Live Telemetry</span>
+                        </div>
+                    </div>
+                `;
+
+                radarMarker.bindPopup(popupContent);
+            });
+        }
+
+        // Switch Focus between Major Flood Basins of Thailand (Pitching Showcase)
+        function switchFloodRegion(regionKey) {
+            sfx.playClick();
+            const region = FLOOD_PRONE_REGIONS[regionKey];
+            if (!region || !map) return;
+
+            map.flyTo([region.lat, region.lng], region.zoom, {
+                animate: true,
+                duration: 1.8
+            });
+
+            Toast.show({
+                title: `พิกัดดาวเทียม: ${region.name}`,
+                message: `${region.subtext} (ข้อมูลสด GISTDA SAR)`,
+                type: 'info'
+            });
+        }
+
+        // Render Critical POIs (2-3 Hospitals & 1-2 Rescue Centers / Safe Drop-off Havens)
+        function renderCriticalPOIs() {
+            poiLayerGroup = L.layerGroup().addTo(map);
+
+            CRITICAL_POIS.forEach(poi => {
+                let badgeClass = 'poi-badge-hospital';
+                if (poi.type === 'rescue_center') badgeClass = 'poi-badge-rescue';
+                if (poi.type === 'safe_zone') badgeClass = 'poi-badge-safe';
+
+                const poiHtml = `
+                    <div class="poi-marker" title="${poi.name}">
+                        <div class="${badgeClass}">
+                            ${poi.icon}
+                        </div>
+                    </div>
+                `;
+
+                const poiIcon = L.divIcon({
+                    className: 'custom-poi-pin',
+                    html: poiHtml,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18]
+                });
+
+                const poiMarker = L.marker([poi.lat, poi.lng], { icon: poiIcon }).addTo(poiLayerGroup);
+
+                const popupHtml = `
+                    <div class="p-3.5 text-xs space-y-2 min-w-[250px]">
+                        <div class="flex items-center gap-2 border-b border-slate-700/60 pb-2">
+                            <span class="text-2xl">${poi.icon}</span>
+                            <div>
+                                <div class="font-bold text-white text-sm">${poi.name}</div>
+                                <div class="text-[10px] ${poi.type === 'hospital' ? 'text-rose-400' : 'text-cyan-400'} font-tactical font-semibold">${poi.subname}</div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                            <div class="text-emerald-400 font-semibold font-mono-num text-[11px]">● ${poi.status}</div>
+                            <div class="text-slate-300 font-mono-num text-[11px]">${poi.capacity}</div>
+                        </div>
+                        <div class="text-[11px] text-slate-300 leading-relaxed">${poi.desc}</div>
+                        <div class="pt-1 border-t border-slate-800 flex items-center justify-between text-[11px]">
+                            <a href="tel:${poi.phone.split('/')[0].trim()}" class="text-cyan-400 font-mono-num font-bold hover:underline">📞 ${poi.phone}</a>
+                            <span class="px-2 py-0.5 rounded text-[9px] bg-slate-800 text-slate-400 font-mono-num uppercase">${poi.type.replace('_', ' ')}</span>
+                        </div>
+                    </div>
+                `;
+
+                poiMarker.bindPopup(popupHtml);
+            });
+        }
+
+        // Render Color-coded Victim Case Markers on Map
+        function renderVictimCaseMarkers() {
+            if (!victimMarkersGroup) return;
+            victimMarkersGroup.clearLayers();
+            victimMarkersMap = {};
+
+            const cases = ResQStorage.getAllCases().filter(c => c.status !== 'RESOLVED');
+
+            cases.forEach(c => {
+                const isRed = c.priority === 'CODE_RED';
+                const isOrange = c.priority === 'CODE_ORANGE';
+                const pinColor = isRed ? '#ef4444' : (isOrange ? '#f59e0b' : '#06b6d4');
+                const iconChar = isRed ? '🚨' : (isOrange ? '⚠️' : '📍');
+
+                const customHtml = `
+                    <div class="radar-blip-pin animate-marker-drop cursor-pointer" title="${c.name} (${c.id})">
+                        ${isRed ? `
+                            <div class="radar-blip-wave" style="border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.35);"></div>
+                            <div class="radar-blip-wave" style="border: 1px dashed #ef4444; animation-delay: 0.8s;"></div>
+                        ` : (isOrange ? `
+                            <div class="radar-blip-wave" style="border: 2px solid #f59e0b; background: rgba(245, 158, 11, 0.25);"></div>
+                        ` : `
+                            <div class="radar-blip-wave" style="border: 1.5px solid #06b6d4; background: rgba(6, 182, 212, 0.2);"></div>
+                        `)}
+                        <div class="radar-blip-core" style="background-color: ${pinColor}; color: #ffffff; border-color: #ffffff; box-shadow: 0 0 16px ${pinColor};">
+                            ${iconChar}
+                        </div>
+                    </div>
+                `;
+
+                const icon = L.divIcon({
+                    className: 'victim-pin-marker',
+                    html: customHtml,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18]
+                });
+
+                const marker = L.marker([c.lat, c.lng], { icon: icon }).addTo(victimMarkersGroup);
+                victimMarkersMap[c.id] = marker;
+
+                const dist = calculateDistanceKm(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng, c.lat, c.lng);
+
+                const popupHtml = `
+                    <div class="p-3 text-xs space-y-2 min-w-[240px]">
+                        <div class="flex items-center justify-between border-b border-slate-700/60 pb-1.5">
+                            <span class="font-tactical font-bold text-cyan-400">${c.id}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isRed ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50' : 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                            }">
+                                ${c.priority.replace('_', ' ')}
+                            </span>
+                        </div>
+                        <div>
+                            <div class="font-bold text-white text-sm">${c.name}</div>
+                            <div class="text-[11px] text-slate-300 mt-0.5">${c.address}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-950/70 p-2 rounded-lg border border-slate-800 font-mono-num">
+                            <div>👥 ผู้ประสบภัย: <strong class="text-white">${c.headcount} คน</strong></div>
+                            <div>🌊 น้ำ: <strong class="${c.waterLevel === 'critical' ? 'text-rose-400' : 'text-amber-400'}">${c.waterLevelText}</strong></div>
+                        </div>
+                        <div class="text-[11px] text-slate-300">
+                            <strong>สิ่งที่ต้องการ:</strong>
+                            <div class="text-slate-200 mt-0.5">${c.needs.join(', ') || 'เรืออพยพ'}</div>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] pt-1">
+                            <span class="text-cyan-400 font-mono-num font-bold">⚓ ห่างฐาน ${dist} กม.</span>
+                            <a href="tel:${c.phone}" class="text-slate-300 font-mono-num hover:underline">📞 ${c.phone}</a>
+                        </div>
+                        <div class="pt-2 border-t border-slate-700/60 flex gap-2">
+                            <button type="button" onclick="resolveDispatchCase(event, '${c.id}')" 
+                                class="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-colors">
+                                <span>✔️</span>
+                                <span>ยืนยันช่วยสำเร็จและปิดเคส</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupHtml);
+            });
+        }
+
+        // Add High-Tech Rescue Command Center Marker
+        function addCommandCenterMarker() {
+            const hqHtml = `
+                <div class="radar-blip-pin" title="Rescue HQ Command Base">
+                    <div class="radar-blip-wave" style="border: 2px solid #00f0ff; background: rgba(0, 240, 255, 0.25);"></div>
+                    <div class="radar-blip-core" style="background-color: #0284c7; color: #ffffff; border-color: #38bdf8; box-shadow: 0 0 16px #00f0ff;">
+                        ⚓
+                    </div>
+                </div>
+            `;
+
+            const hqIcon = L.divIcon({
+                className: 'hq-command-pin',
+                html: hqHtml,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+
+            commandCenterMarker = L.marker([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], { icon: hqIcon })
+                .addTo(map)
+                .bindPopup(`
+                    <div class="p-3 text-xs space-y-1">
+                        <div class="font-tactical text-cyan-400 font-bold uppercase">RESCUE COMMAND CENTER</div>
+                        <div class="font-bold text-white text-sm">${DEFAULT_CENTER.name}</div>
+                        <div class="text-[11px] text-slate-300">ฐานบัญชาการเรือกู้ภัยส่วนหน้า จุดปล่อยเรือยางและเรือพยาบาล</div>
+                        <div class="text-emerald-400 font-mono-num font-semibold pt-1">● สถานะ: ออนไลน์พร้อมออกปฏิบัติการ</div>
+                    </div>
+                `);
+        }
+
+        // Draw / Update Animated Glowing Neon Rescue Route (Path Simulation)
+        function updateRescueRoute(targetLat, targetLng) {
+            const basePos = [DEFAULT_CENTER.lat, DEFAULT_CENTER.lng];
+            const targetPos = [targetLat, targetLng];
+
+            if (rescueRoutePolyline) {
+                rescueRoutePolyline.setLatLngs([basePos, targetPos]);
+            } else {
+                rescueRoutePolyline = L.polyline([basePos, targetPos], {
+                    color: '#00f0ff',
+                    weight: 4.5,
+                    opacity: 0.95,
+                    dashArray: '10, 12',
+                    className: 'glowing-neon-route'
+                }).addTo(map);
+            }
+
+            // Calculate Distance and ETA
+            const distKm = calculateDistanceKm(basePos[0], basePos[1], targetLat, targetLng);
+            // Assuming average rescue boat speed in flood current ~15 km/h
+            const estimatedMinutes = Math.max(5, Math.round((distKm / 15) * 60) + 3);
+
+            const distEl = document.getElementById('route-distance-text');
+            const etaEl = document.getElementById('route-eta-text');
+            if (distEl) distEl.textContent = `${distKm} กม.`;
+            if (etaEl) etaEl.textContent = `~${estimatedMinutes} นาที`;
+        }
+
+        // Custom High-Tech Radar Blip Marker for User Location
+        function createOrUpdateMarker(lat, lng, animated = false) {
+            const priorityInfo = calculateCurrentPriority();
+            const pinColor = priorityInfo.color;
+            const isRed = priorityInfo.priority === 'CODE_RED';
+
+            const customHtml = `
+                <div class="radar-blip-pin ${animated ? 'animate-marker-drop' : ''}">
+                    <div class="radar-blip-wave" style="border: 2px solid ${pinColor}; background: ${pinColor}33;"></div>
+                    <div class="radar-blip-wave" style="border: 1px dashed ${pinColor}; animation-delay: 0.9s;"></div>
+                    <div class="radar-blip-core" style="background-color: ${pinColor}; color: #ffffff; border-color: #ffffff; box-shadow: 0 0 16px ${pinColor};">
+                        ${isRed ? '🚨' : (priorityInfo.priority === 'CODE_ORANGE' ? '⚠️' : '📍')}
+                    </div>
+                </div>
+            `;
+
+            const customIcon = L.divIcon({
+                className: 'custom-tactical-pin',
+                html: customHtml,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+
+            if (activeMarker) {
+                activeMarker.setLatLng([lat, lng]);
+                activeMarker.setIcon(customIcon);
+            } else {
+                activeMarker = L.marker([lat, lng], {
+                    icon: customIcon,
+                    draggable: true
+                }).addTo(map);
+
+                activeMarker.on('dragend', (e) => {
+                    const pos = e.target.getLatLng();
+                    setFormCoordinates(pos.lat, pos.lng);
+                    updateRescueRoute(pos.lat, pos.lng);
+                    sfx.playClick();
+                });
+            }
+
+            setFormCoordinates(lat, lng);
+        }
+
+        // Sync coordinates to form inputs and HUD
+        function setFormCoordinates(lat, lng) {
+            const formattedLat = parseFloat(lat).toFixed(4);
+            const formattedLng = parseFloat(lng).toFixed(4);
+
+            document.getElementById('input-lat').value = formattedLat;
+            document.getElementById('input-lng').value = formattedLng;
+            document.getElementById('hud-lat').textContent = formattedLat;
+            document.getElementById('hud-lng').textContent = formattedLng;
+        }
+
+        // 2. Geolocation with map.flyTo() and animation
+        function detectUserLocation() {
+            sfx.playClick();
+            const btn = document.getElementById('btn-geolocate');
+            const spinner = document.getElementById('geo-spinner');
+            const icon = document.getElementById('geo-icon');
+            const status = document.getElementById('gps-status-indicator');
+
+            spinner.classList.remove('hidden');
+            icon.classList.add('hidden');
+            status.textContent = '● กำลังสแกนหาพิกัด GPS...';
+            status.className = 'text-[11px] text-amber-400 font-mono-num animate-pulse';
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userLat = position.coords.latitude;
+                        const userLng = position.coords.longitude;
+
+                        spinner.classList.add('hidden');
+                        icon.classList.remove('hidden');
+                        status.textContent = '● ตรวจพบพิกัดปัจจุบัน (GPS Locked)';
+                        status.className = 'text-[11px] text-emerald-400 font-mono-num';
+
+                        // Smooth flyTo interaction
+                        map.flyTo([userLat, userLng], 17, {
+                            animate: true,
+                            duration: 1.8
+                        });
+
+                        setTimeout(() => {
+                            createOrUpdateMarker(userLat, userLng, true);
+                            updateRescueRoute(userLat, userLng);
+                            sfx.playSonar();
+                            Toast.show({
+                                title: 'พบพิกัดของคุณแล้ว',
+                                message: `ล็อคพิกัดดาวเทียม ${userLat.toFixed(4)}, ${userLng.toFixed(4)} สำเร็จ`,
+                                type: 'success'
+                            });
+                        }, 900);
+                    },
+                    (err) => {
+                        console.warn('Geolocation denied or unavailable. Fallback to Warin Chamrap crisis zone:', err);
+                        spinner.classList.add('hidden');
+                        icon.classList.remove('hidden');
+                        status.textContent = '● จำลองพิกัดพื้นที่น้ำท่วม (Warin Flood Zone)';
+                        status.className = 'text-[11px] text-cyan-400 font-mono-num';
+
+                        // Smart fallback around Warin Chamrap flooded riverbank
+                        const fallbackLat = 15.2045 + (Math.random() - 0.5) * 0.006;
+                        const fallbackLng = 104.8582 + (Math.random() - 0.5) * 0.006;
+
+                        map.flyTo([fallbackLat, fallbackLng], 17, {
+                            animate: true,
+                            duration: 1.8
+                        });
+
+                        setTimeout(() => {
+                            createOrUpdateMarker(fallbackLat, fallbackLng, true);
+                            updateRescueRoute(fallbackLat, fallbackLng);
+                            sfx.playSonar();
+                            Toast.show({
+                                title: 'พิกัดพื้นที่ประสบภัยจำลอง',
+                                message: `ใช้พิกัดจุดเฝ้าระวังน้ำท่วม อ.วารินชำราบ เพื่อการสาธิตระบบ`,
+                                type: 'info'
+                            });
+                        }, 900);
+                    },
+                    { enableHighAccuracy: true, timeout: 8000 }
+                );
+            } else {
+                Toast.show({
+                    title: 'ไม่รองรับ Geolocation',
+                    message: 'อุปกรณ์ของคุณไม่รองรับการจับพิกัด GPS อัตโนมัติ',
+                    type: 'error'
+                });
+            }
+        }
+
+        // 3. Switch Map Layer (Google Hybrid Satellite vs CartoDB Dark)
+        function switchMapLayer() {
+            sfx.playClick();
+            if (!map) return;
+            map.removeLayer(currentTileLayer);
+            isSatellite = !isSatellite;
+
+            const targetTiles = isSatellite ? GOOGLE_HYBRID : CARTODB_DARK;
+            currentTileLayer = L.tileLayer(targetTiles, {
+                maxZoom: 20,
+                subdomains: isSatellite ? ['mt0', 'mt1', 'mt2', 'mt3'] : 'abcd'
+            }).addTo(map);
+
+            const attrEl = document.getElementById('active-tile-attribution');
+            if (attrEl) {
+                attrEl.textContent = isSatellite 
+                    ? 'LAYER: GOOGLE MAPS HYBRID SATELLITE (REAL-WORLD IMAGERY)' 
+                    : 'LAYER: CARTODB DARK TACTICAL (NO WATERMARK)';
+            }
+
+            Toast.show({
+                title: isSatellite ? 'โหมดภาพถ่ายดาวเทียมจริง (Google Hybrid)' : 'โหมดแผนที่มืด (CartoDB Dark)',
+                message: 'เปลี่ยนมุมมองชั้นข้อมูลแผนที่เรียบร้อย',
+                type: 'info'
+            });
+        }
+
+        // 4. Render Live Dispatch Feed UI (Interactive & Clearable)
+        function renderLiveDispatchFeed() {
+            const container = document.getElementById('live-dispatch-feed-list');
+            if (!container) return;
+
+            // Get active cases from LocalStorage (excluding RESOLVED)
+            const stored = ResQStorage.getAllCases();
+            const activeCases = stored.filter(c => c.status !== 'RESOLVED');
+
+            let feedItems = [];
+
+            // Add all active cases from local storage
+            activeCases.forEach(c => {
+                const dist = calculateDistanceKm(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng, c.lat, c.lng);
+                let tag = 'อพยพด่วน';
+                if (c.vulnerabilities && c.vulnerabilities.includes('bedridden')) tag = 'ผู้ป่วยติดเตียง';
+                else if (c.vulnerabilities && c.vulnerabilities.includes('infant')) tag = 'ทารก 3 เดือน';
+                else if (c.vulnerabilities && c.vulnerabilities.includes('elderly')) tag = 'ผู้สูงอายุ';
+                else if (c.waterLevel === 'critical') tag = 'น้ำมิดหลังคา';
+
+                let boatStatus = c.status === 'DISPATCHED' 
+                    ? `ส่ง ${c.assignedBoat || 'เรือกู้ชีพ'} แล้ว` 
+                    : (c.assignedBoat ? `เรือ ${c.assignedBoat}` : 'รับแจ้งเหตุเข้าระบบแล้ว');
+
+                feedItems.push({
+                    caseId: c.id,
+                    victim: c.name,
+                    priority: c.priority || 'CODE_RED',
+                    tag: tag,
+                    distance: `${dist} กม.`,
+                    boat: c.assignedBoat || 'ทีมกู้ภัยเคลื่อนที่เร็ว',
+                    status: boatStatus,
+                    time: c.reportedTime || 'เมื่อสักครู่',
+                    lat: c.lat,
+                    lng: c.lng
+                });
+            });
+
+            // Update count badge
+            const countBadge = document.getElementById('dispatch-feed-count');
+            if (countBadge) countBadge.textContent = `${feedItems.length} ACTIVE UNITS`;
+
+            if (feedItems.length === 0) {
+                container.innerHTML = `
+                    <div class="p-6 text-center text-slate-500 text-xs">
+                        <div class="text-2xl mb-1">🎉</div>
+                        <div>ไม่มีเคสค้างในระบบ! เคลียร์ภารกิจครบถ้วน</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = feedItems.map((item) => {
+                const isRed = item.priority === 'CODE_RED';
+                const isOrange = item.priority === 'CODE_ORANGE';
+                const feedClass = isRed ? 'feed-code-red' : (isOrange ? 'feed-code-orange' : 'feed-code-yellow');
+                const badgeColor = isRed 
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' 
+                    : (isOrange ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40');
+
+                return `
+                    <div id="dispatch-item-${item.caseId}" 
+                        class="dispatch-feed-item ${feedClass} p-2.5 rounded-xl border border-slate-800/80 cursor-pointer flex items-center justify-between gap-2.5 text-xs transition-all duration-300 hover:border-cyan-500/60 hover:bg-slate-900/90" 
+                        onclick="focusDispatchCase('${item.caseId}', ${item.lat || DEFAULT_CENTER.lat}, ${item.lng || DEFAULT_CENTER.lng})">
+                        
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span class="w-2 h-2 rounded-full shrink-0 ${isRed ? 'bg-rose-500 live-beacon shadow-[0_0_8px_#ef4444]' : (isOrange ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' : 'bg-cyan-400')}"></span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-tactical font-bold text-cyan-300 text-[11px]">${item.caseId}</span>
+                                    <span class="font-bold text-white truncate max-w-[110px] sm:max-w-[130px]">${item.victim}</span>
+                                    <span class="px-1.5 py-0.2 rounded text-[9px] font-bold border ${badgeColor}">
+                                        ${item.tag}
+                                    </span>
+                                </div>
+                                <div class="text-[10px] text-slate-300 mt-0.5 truncate">
+                                    ${item.status} (${item.boat})
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 shrink-0">
+                            <div class="text-right whitespace-nowrap hidden xs:block">
+                                <div class="text-cyan-300 font-mono-num font-bold text-[11px]">${item.distance}</div>
+                                <div class="text-[9px] text-slate-400">${item.time}</div>
+                            </div>
+
+                            <button type="button" 
+                                onclick="resolveDispatchCase(event, '${item.caseId}')" 
+                                title="ปิดเคส / ช่วยเหลือสำเร็จ" 
+                                class="btn-resolve-tactical flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/40 hover:border-emerald-400 font-tactical font-semibold text-[11px] transition-all duration-200 shadow-sm hover:shadow-[0_0_12px_rgba(16,185,129,0.5)] active:scale-95 group">
+                                <span class="text-xs group-hover:scale-110 transition-transform">✔️</span>
+                                <span class="hidden sm:inline">ปิดเคส</span>
+                            </button>
+                        </div>
+
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 1. Focus Case on map with Leaflet map.flyTo() and trigger marker popup
+        function focusDispatchCase(caseId, lat, lng) {
+            sfx.playClick();
+            if (!map) return;
+
+            const targetLat = lat || DEFAULT_CENTER.lat;
+            const targetLng = lng || DEFAULT_CENTER.lng;
+
+            // Leaflet map.flyTo smooth pan and zoom
+            map.flyTo([targetLat, targetLng], 17, {
+                animate: true,
+                duration: 1.4
+            });
+
+            // Update glowing neon rescue route from HQ to victim
+            updateRescueRoute(targetLat, targetLng);
+
+            // Highlight active feed item card
+            document.querySelectorAll('.dispatch-feed-item').forEach(el => {
+                el.classList.remove('ring-1', 'ring-cyan-400', 'bg-cyan-950/30');
+            });
+            const activeCard = document.getElementById(`dispatch-item-${caseId}`);
+            if (activeCard) {
+                activeCard.classList.add('ring-1', 'ring-cyan-400', 'bg-cyan-950/30');
+            }
+
+            // Open victim marker popup and sound sonar after fly
+            setTimeout(() => {
+                if (victimMarkersMap && victimMarkersMap[caseId]) {
+                    victimMarkersMap[caseId].openPopup();
+                }
+                sfx.playSonar();
+            }, 800);
+
+            Toast.show({
+                title: `โฟกัสพิกัด ${caseId}`,
+                message: `แพนกล้องดาวเทียมสู่พิกัด [${targetLat.toFixed(4)}, ${targetLng.toFixed(4)}]`,
+                type: 'info'
+            });
+        }
+
+        // Alias for backward compatibility
+        function focusFeedLocation(lat, lng, caseId) {
+            focusDispatchCase(caseId, lat, lng);
+        }
+
+        // 2. Resolve / Clear Case workflow (Smooth fade-out, map pin removal, LocalStorage cleanup)
+        function resolveDispatchCase(event, caseId) {
+            if (event) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+            sfx.playSuccess();
+
+            // A. Smooth CSS fade-out & slide transition in DOM
+            const itemEl = document.getElementById(`dispatch-item-${caseId}`);
+            if (itemEl) {
+                itemEl.classList.add('dispatch-item-leaving');
+            }
+
+            // B. Remove corresponding marker from Leaflet map
+            if (victimMarkersMap && victimMarkersMap[caseId]) {
+                victimMarkersGroup.removeLayer(victimMarkersMap[caseId]);
+                delete victimMarkersMap[caseId];
+            }
+
+            // Close popup if it was open on this case
+            if (map) {
+                map.closePopup();
+            }
+
+            // C. Remove / Update case in LocalStorage
+            ResQStorage.deleteCase(caseId);
+
+            // Toast feedback
+            Toast.show({
+                title: `ปิดเคสสำเร็จ (${caseId})`,
+                message: `ยืนยันภารกิจเสร็จสิ้น ข้อมูลถูกนำออกจากแผนที่และระบบแล้ว`,
+                type: 'success'
+            });
+
+            // Clean up DOM element after animation finishes & update counter
+            setTimeout(() => {
+                if (itemEl && itemEl.parentNode) {
+                    itemEl.parentNode.removeChild(itemEl);
+                }
+                const remaining = document.querySelectorAll('.dispatch-feed-item:not(.dispatch-item-leaving)').length;
+                const countBadge = document.getElementById('dispatch-feed-count');
+                if (countBadge) {
+                    countBadge.textContent = `${remaining} ACTIVE UNITS`;
+                }
+                updateBadgeCount();
+            }, 380);
+        }
+
+        // 5. Stepper Helpers
+        function adjustHeadcount(delta) {
+            sfx.playClick();
+            const input = document.getElementById('input-headcount');
+            let val = parseInt(input.value) || 1;
+            val = Math.max(1, Math.min(50, val + delta));
+            input.value = val;
+            updateTriagePriorityGauge();
+        }
+
+        function setHeadcount(num) {
+            sfx.playClick();
+            document.getElementById('input-headcount').value = num;
+            updateTriagePriorityGauge();
+        }
+
+        // 5. Water Level Selection
+        function selectWaterLevel(level, element) {
+            sfx.playClick();
+            selectedWaterLevel = level;
+            const container = document.getElementById('water-level-grid');
+            Array.from(container.children).forEach(el => {
+                el.classList.remove('selected', 'selected-red', 'border-cyan-500', 'border-rose-500');
+                el.classList.add('border-slate-700');
+            });
+
+            if (level === 'critical') {
+                element.classList.add('selected-red', 'border-rose-500');
+                document.getElementById('water-level-tag').textContent = 'มิดหลังคา/ชั้น 1 (วิกฤตสูงสุด)';
+                document.getElementById('water-level-tag').className = 'text-[11px] text-rose-400 font-bold animate-pulse';
+            } else if (level === 'high') {
+                element.classList.add('selected', 'border-cyan-500');
+                document.getElementById('water-level-tag').textContent = 'ระดับเอว-อก (อันตราย)';
+                document.getElementById('water-level-tag').className = 'text-[11px] text-amber-400 font-semibold';
+            } else {
+                element.classList.add('selected', 'border-cyan-500');
+                document.getElementById('water-level-tag').textContent = 'ข้อเท้า-เข่า (เฝ้าระวัง)';
+                document.getElementById('water-level-tag').className = 'text-[11px] text-cyan-400 font-semibold';
+            }
+
+            updateTriagePriorityGauge();
+        }
+
+        // 6. Triage Checkbox Toggle
+        function toggleTriageOption(element, key, isCritical = false) {
+            sfx.playClick();
+            const checkIcon = element.querySelector('.check-icon');
+            const isSelected = element.classList.contains('selected') || element.classList.contains('selected-red');
+
+            if (isSelected) {
+                element.classList.remove('selected', 'selected-red', 'border-cyan-500/40', 'border-rose-500');
+                element.classList.add('border-slate-700');
+                checkIcon.classList.add('hidden');
+                
+                selectedTriageItems = selectedTriageItems.filter(i => i !== key);
+                selectedVulnerabilities = selectedVulnerabilities.filter(i => i !== key);
+            } else {
+                if (isCritical) {
+                    element.classList.add('selected-red', 'border-rose-500');
+                } else {
+                    element.classList.add('selected', 'border-cyan-500/40');
+                }
+                element.classList.remove('border-slate-700');
+                checkIcon.classList.remove('hidden');
+
+                if (!selectedTriageItems.includes(key)) selectedTriageItems.push(key);
+                if (['bedridden', 'infant', 'elderly'].includes(key) && !selectedVulnerabilities.includes(key)) {
+                    selectedVulnerabilities.push(key);
+                }
+            }
+
+            updateTriagePriorityGauge();
+        }
+
+        // 7. Calculate Current Priority
+        function calculateCurrentPriority() {
+            const headcount = parseInt(document.getElementById('input-headcount').value) || 1;
+            const needs = selectedTriageItems;
+            const vulnerabilities = selectedVulnerabilities;
+
+            return calculateTriagePriority({
+                headcount,
+                vulnerabilities,
+                waterLevel: selectedWaterLevel,
+                needs
+            });
+        }
+
+        // 8. Update Live Dynamic Triage HUD Gauge
+        function updateTriagePriorityGauge() {
+            const triage = calculateCurrentPriority();
+            const banner = document.getElementById('triage-hud-banner');
+            const label = document.getElementById('triage-label-display');
+            const score = document.getElementById('triage-score-display');
+            const dot = document.getElementById('triage-pulse-dot');
+
+            label.textContent = triage.label;
+            score.textContent = `${triage.score}/100`;
+
+            if (triage.priority === 'CODE_RED') {
+                banner.className = 'p-3.5 rounded-xl border border-rose-500/50 bg-rose-950/30 flex items-center justify-between transition-all duration-300 shadow-[0_0_20px_rgba(239,68,68,0.25)]';
+                label.className = 'text-xs font-bold text-rose-400 animate-pulse';
+                score.className = 'font-mono-num text-sm font-bold text-rose-400';
+                dot.className = 'w-3 h-3 rounded-full bg-rose-500 live-beacon shadow-[0_0_10px_#ef4444]';
+            } else if (triage.priority === 'CODE_ORANGE') {
+                banner.className = 'p-3.5 rounded-xl border border-amber-500/40 bg-amber-950/20 flex items-center justify-between transition-all duration-300';
+                label.className = 'text-xs font-bold text-amber-300';
+                score.className = 'font-mono-num text-sm font-bold text-amber-300';
+                dot.className = 'w-3 h-3 rounded-full bg-amber-400 live-beacon shadow-[0_0_10px_#f59e0b]';
+            } else {
+                banner.className = 'p-3.5 rounded-xl border border-cyan-500/30 bg-cyan-950/20 flex items-center justify-between transition-all duration-300';
+                label.className = 'text-xs font-bold text-cyan-300';
+                score.className = 'font-mono-num text-sm font-bold text-cyan-300';
+                dot.className = 'w-3 h-3 rounded-full bg-cyan-400 live-beacon shadow-[0_0_10px_#06b6d4]';
+            }
+
+            // Update marker style in real-time
+            if (activeMarker) {
+                const lat = activeMarker.getLatLng().lat;
+                const lng = activeMarker.getLatLng().lng;
+                createOrUpdateMarker(lat, lng, false);
+            }
+        }
+
+        // 9. Handle SOS Form Submission (Save to LocalStorage & Show Tactical Modal)
+        function handleSosSubmit(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('input-name').value.trim();
+            const phone = document.getElementById('input-phone').value.trim();
+            const address = document.getElementById('input-address').value.trim();
+            const lat = parseFloat(document.getElementById('input-lat').value);
+            const lng = parseFloat(document.getElementById('input-lng').value);
+            const headcount = parseInt(document.getElementById('input-headcount').value) || 1;
+
+            if (!name || !phone || !address) {
+                Toast.show({
+                    title: 'กรุณากรอกข้อมูลให้ครบถ้วน',
+                    message: 'โปรดระบุชื่อ เบอร์ติดต่อ และจุดสังเกตเพื่อความปลอดภัย',
+                    type: 'warning'
+                });
+                return;
+            }
+
+            const priorityObj = calculateCurrentPriority();
+
+            // Needs human readable labels
+            const needLabelsMap = {
+                'boat': '🚤 ต้องการเรืออพยพด่วน',
+                'bedridden': '🛏️ มีผู้ป่วยติดเตียง/คนบาดเจ็บ',
+                'infant': '🍼 มีเด็กทารก/นมผงหมด',
+                'elderly': '👵 มีคนชรา/หญิงตั้งครรภ์',
+                'food_water': '🍱 ขาดแคลนอาหารและน้ำดื่ม',
+                'medicine': '💊 ขาดออกซิเจน/ยารักษาโรคเร่งด่วน'
+            };
+
+            const readableNeeds = selectedTriageItems.map(item => needLabelsMap[item] || item);
+
+            // Generate Mission Case Object
+            const caseId = 'RQ-' + Math.floor(1000 + Math.random() * 9000);
+            const newCase = {
+                id: caseId,
+                name: name,
+                phone: phone,
+                lat: lat,
+                lng: lng,
+                address: address,
+                headcount: headcount,
+                vulnerabilities: selectedVulnerabilities,
+                waterLevel: selectedWaterLevel,
+                waterLevelText: selectedWaterLevel === 'critical' ? 'วิกฤต (>1.5 ม.)' : (selectedWaterLevel === 'high' ? 'ระดับอก (0.8-1.2 ม.)' : 'ระดับเข่า (0.3-0.5 ม.)'),
+                needs: readableNeeds,
+                priority: priorityObj.priority,
+                priorityScore: priorityObj.score,
+                status: 'PENDING',
+                assignedBoat: null,
+                notes: `แจ้งเหตุผ่านระบบ SOS Portal | จุดสังเกต: ${address}`,
+                timestamp: new Date().toISOString(),
+                reportedTime: 'เพิ่งแจ้งเมื่อสักครู่'
+            };
+
+            // Save to LocalStorage!
+            ResQStorage.addCase(newCase);
+            updateBadgeCount();
+
+            // Trigger Tactical Toast & Modal
+            Toast.show({
+                title: 'สัญญาณ SOS ถูกส่งแล้ว!',
+                message: `เคส ${caseId} (${priorityObj.priority}) บันทึกเข้าระบบสั่งการกู้ภัยแล้ว`,
+                type: priorityObj.priority === 'CODE_RED' ? 'danger' : 'success'
+            });
+
+            // Open Success Modal with Mission Telemetry
+            openSuccessModal(newCase, priorityObj);
+        }
+
+        // 10. Success Modal Controls
+        function openSuccessModal(caseData, priorityObj) {
+            const modal = document.getElementById('success-modal');
+            const panel = document.getElementById('success-modal-panel');
+
+            document.getElementById('modal-case-id').textContent = caseData.id;
+            document.getElementById('modal-victim-name').textContent = caseData.name;
+            document.getElementById('modal-headcount').textContent = `${caseData.headcount} คน (${caseData.waterLevelText})`;
+            document.getElementById('modal-coords').textContent = `${caseData.lat.toFixed(4)}, ${caseData.lng.toFixed(4)}`;
+            
+            const badge = document.getElementById('modal-priority-badge');
+            badge.textContent = priorityObj.label;
+            badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                priorityObj.priority === 'CODE_RED' 
+                    ? 'bg-rose-500/20 border border-rose-500 text-rose-400 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
+                    : 'bg-amber-500/20 border border-amber-500 text-amber-400'
+            }`;
+
+            const needsContainer = document.getElementById('modal-needs-list');
+            needsContainer.innerHTML = caseData.needs.map(n => `<div>• ${n}</div>`).join('') || '<div>- อพยพทั่วไป</div>';
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            requestAnimationFrame(() => {
+                panel.classList.remove('scale-95', 'opacity-0');
+                panel.classList.add('scale-100', 'opacity-100');
+            });
+
+            sfx.playSuccess();
+        }
+
+        function closeSuccessModal() {
+            sfx.playClick();
+            const modal = document.getElementById('success-modal');
+            const panel = document.getElementById('success-modal-panel');
+
+            panel.classList.remove('scale-100', 'opacity-100');
+            panel.classList.add('scale-95', 'opacity-0');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 250);
+        }
+
+        // 11. Update Total Case Badge
+        function updateBadgeCount() {
+            const cases = ResQStorage.getAllCases();
+            const badge = document.getElementById('badge-case-count');
+            if (badge) {
+                badge.textContent = `${cases.length} เคส`;
+            }
+        }
+
+        // 12. Pitching Demo Quick Seeder
+        function triggerPitchDemoSeed() {
+            sfx.playSonar();
+            ResQStorage.seedDemo();
+            updateBadgeCount();
+            Toast.show({
+                title: 'โหลดสถานการณ์น้ำท่วมจำลองสำเร็จ',
+                message: 'เตรียมข้อมูล 7 เคสวิกฤตพร้อมพิกัดจริงสำหรับการ Pitching เรียบร้อยแล้ว',
+                type: 'info'
+            });
+        }
+    </script>
+</body>
+</html>
